@@ -39,10 +39,10 @@ index = pc.Index(PINECONE_INDEX_NAME)
 # ----------------------------
 # Initialize SQLAlchemy (NeonDB Postgres)
 # ----------------------------
-engine = create_engine(NEONDB_URL)
+""" engine = create_engine(NEONDB_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 metadata = MetaData()
-papers_table = Table("papers", metadata, autoload_with=engine)
+papers_table = Table("papers", metadata, autoload_with=engine) """
 
 
 # ----------------------------
@@ -69,14 +69,6 @@ class QueryRequest(BaseModel):
     query: str
     difficulty_level: Optional[int] = None
     user_id: Optional[str] = None
-
-class PaperResponse(BaseModel):
-    arxiv_id: str
-    title: str
-    abstract: Optional[str]
-    difficulty_level: int
-    original_summary: str
-    generated_summary: Optional[str] = None
 
 # ----------------------------
 # LangChain Integration
@@ -145,46 +137,34 @@ def query_pinecone(refined_query: str, top_k: int = 10) -> List[str]:
     print("Response: ", response)
     return [match.id for match in response.matches]
 
-def get_papers_from_db(arxiv_ids: List[str]) -> List[dict]:
+""" def get_papers_from_db(arxiv_ids: List[str]) -> List[dict]:
     with SessionLocal() as session:
         stmt = select(papers_table).where(papers_table.c.arxiv_id.in_(arxiv_ids))
         return [dict(row._mapping) for row in session.execute(stmt).fetchall()]
-
+ """
 # ----------------------------
 # API Endpoint: /query
 # ----------------------------
-@app.post("/query", response_model=List[PaperResponse])
+@app.post("/query", response_model=List[str])  # Change the response model to List[str] to return candidate_ids
 def query_papers(request: QueryRequest):
     refined_query = refine_query(request.query)
     print(refined_query)
     candidate_ids = query_pinecone(refined_query)
-    #print('candidate ids: ', candidate_ids)
+    
     if not candidate_ids:
         raise HTTPException(status_code=404, detail="No papers found from vector search.")
+    
+    # Return only the candidate_ids (arxiv_id)
+    return candidate_ids
 
-    papers = get_papers_from_db(candidate_ids)
-    #print('papers: ', papers)
-    if request.difficulty_level is not None:
-        papers = [p for p in papers if p["difficulty_level"] == request.difficulty_level]
-        #print('papers with difficulty: ', papers)
-        if not papers:
-            raise HTTPException(status_code=404, detail="No papers matching the difficulty level.")
+@app.get("/", tags=["root"])
+async def root():
+    return {"message": "Hello World"}
 
-    print('all good')
-    return [
-        PaperResponse(
-            arxiv_id=paper["arxiv_id"],
-            title=paper["title"],
-            abstract=paper.get("abstract", ""),
-            difficulty_level=paper["difficulty_level"],
-            original_summary=paper.get("abstract", ""),
-            generated_summary=None
-        ) for paper in papers
-    ]
-
-# ----------------------------
+""" # ----------------------------
 # Main Entry Point
 # ----------------------------
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("query_refiner:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("query_refiner:app", host="0.0.0.0", port=8000, reload=True)
+ """
