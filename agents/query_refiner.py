@@ -153,21 +153,38 @@ def get_papers_from_db(arxiv_ids: List[str]) -> List[dict]:
 # ----------------------------
 # API Endpoint: /query
 # ----------------------------
-@app.post("/query", response_model=List[str])  # Change the response model to List[str] to return candidate_ids
+@app.post("/query", response_model=List[PaperResponse])
 def query_papers(request: QueryRequest):
     refined_query = refine_query(request.query)
     print(refined_query)
     candidate_ids = query_pinecone(refined_query)
-    
+    #print('candidate ids: ', candidate_ids)
     if not candidate_ids:
         raise HTTPException(status_code=404, detail="No papers found from vector search.")
-    
-    # Return only the candidate_ids (arxiv_id)
-    return candidate_ids
+
+    papers = get_papers_from_db(candidate_ids)
+    #print('papers: ', papers)
+    if request.difficulty_level is not None:
+        papers = [p for p in papers if p["difficulty_level"] == request.difficulty_level]
+        #print('papers with difficulty: ', papers)
+        if not papers:
+            raise HTTPException(status_code=404, detail="No papers matching the difficulty level.")
+
+    print('all good')
+    return [
+        PaperResponse(
+            arxiv_id=paper["arxiv_id"],
+            title=paper["title"],
+            abstract=paper.get("abstract", ""),
+            difficulty_level=paper["difficulty_level"],
+            original_summary=paper.get("abstract", ""),
+            generated_summary=None
+        ) for paper in papers
+    ]
 
 # ----------------------------
 # Main Entry Point
 # ----------------------------
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("query_refiner:app", host="127.0.0.1", port=8300, reload=True)
+    uvicorn.run("query_refiner:app", host="127.0.0.1", port=8000, reload=True)
