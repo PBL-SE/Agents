@@ -2,8 +2,6 @@ import os
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import create_engine, select, Table, MetaData
-from sqlalchemy.orm import sessionmaker
 from pinecone import Pinecone
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI

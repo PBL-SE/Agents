@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.11-slim
+FROM python:3.11-slim as builder
 
 # Set environment variables to avoid interactive prompts during package installs
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -8,8 +8,8 @@ ENV PYTHONUNBUFFERED=1
 # Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies for pip, gcc, and build tools
-RUN apt-get update && apt-get install -y \
+# Install only necessary dependencies for building the application
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     && rm -rf /var/lib/apt/lists/*
@@ -21,8 +21,19 @@ COPY requirements.txt .
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
-COPY . .
+# Now create the final slim image
+FROM python:3.11-slim
+
+# Set environment variables to avoid interactive prompts during package installs
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy only necessary files from the builder stage to avoid unnecessary files
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /app /app
 
 # Set environment variables (optional but recommended for security reasons)
 ENV GOOGLE_API_KEY=${GEMINI_API_KEY}
