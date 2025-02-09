@@ -70,7 +70,7 @@ class QueryRequest(BaseModel):
     user_id: Optional[str] = None
 
 class UserPreferences(BaseModel):
-    user_id: str
+    user_id: int
     difficulty_level: int
     favorite_categories: List[str]
     saved_papers: List[str]
@@ -123,6 +123,10 @@ def refine_query(original_query: str) -> str:
 
 def get_bert_embedding(text):
     """Generates BERT embeddings for text."""
+    
+    if not isinstance(text, str):
+        raise ValueError(f"Expected a string but got {type(text)}: {text}")
+    
     inputs = tokenizer(text, truncation=True, padding="max_length", max_length=512, return_tensors="pt")
     inputs = {key: value.to(device) for key, value in inputs.items()}
     
@@ -141,7 +145,7 @@ def get_bert_embedding(text):
 def query_pinecone(refined_query: str, top_k: int = 10) -> List[str]:
     query_embedding = get_bert_embedding(refined_query)
     response = index.query(vector=query_embedding, top_k=top_k, namespace="ns1")
-    print("Response: ", response)
+    
     return [match.id for match in response.matches]
 
 """ def get_papers_from_db(arxiv_ids: List[str]) -> List[dict]:
@@ -155,7 +159,7 @@ def query_pinecone(refined_query: str, top_k: int = 10) -> List[str]:
 @app.post("/query", response_model=List[str])  # Change the response model to List[str] to return candidate_ids
 def query_papers(request: QueryRequest):
     refined_query = refine_query(request.query)
-    print(refined_query)
+    
     candidate_ids = query_pinecone(refined_query)
     
     if not candidate_ids:
@@ -168,9 +172,8 @@ def query_papers(request: QueryRequest):
 def recommend_papers(user_prefs: UserPreferences):
     """Recommend research papers based on user preferences."""
     query_text = f"Research papers on {', '.join(user_prefs.favorite_categories)} with difficulty {user_prefs.difficulty_level}"
-    query_embedding = get_bert_embedding(query_text)
 
-    candidate_ids = query_pinecone(query_embedding)
+    candidate_ids = query_pinecone(query_text)
 
     if not candidate_ids:
         raise HTTPException(status_code=404, detail="No recommended papers found.")
