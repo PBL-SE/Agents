@@ -1,11 +1,12 @@
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from pinecone import Pinecone
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import LLMChain
+
 from langchain.prompts import PromptTemplate
 from langchain_community.embeddings import OpenAIEmbeddings
 from transformers import AutoModel, AutoTokenizer
@@ -67,6 +68,14 @@ class QueryRequest(BaseModel):
     query: str
     difficulty_level: Optional[int] = None
     user_id: Optional[str] = None
+
+class UserPreferences(BaseModel):
+    user_id: str
+    difficulty_level: int
+    favorite_categories: List[str]
+    saved_papers: List[str]
+    custom_filters: Dict[str, Any]
+
 
 # ----------------------------
 # LangChain Integration
@@ -153,6 +162,19 @@ def query_papers(request: QueryRequest):
         raise HTTPException(status_code=404, detail="No papers found from vector search.")
     
     # Return only the candidate_ids (arxiv_id)
+    return candidate_ids
+
+@app.post("/recommend", response_model=List[str])
+def recommend_papers(user_prefs: UserPreferences):
+    """Recommend research papers based on user preferences."""
+    query_text = f"Research papers on {', '.join(user_prefs.favorite_categories)} with difficulty {user_prefs.difficulty_level}"
+    query_embedding = get_bert_embedding(query_text)
+
+    candidate_ids = query_pinecone(query_embedding)
+
+    if not candidate_ids:
+        raise HTTPException(status_code=404, detail="No recommended papers found.")
+
     return candidate_ids
 
 @app.get("/", tags=["root"])
